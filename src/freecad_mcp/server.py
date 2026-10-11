@@ -21,7 +21,6 @@ from .operations import (
     delete_object_operation,
     edit_object_operation,
     execute_code_async_operation,
-    execute_code_headless_operation,
     execute_code_operation,
     get_object_operation,
     get_objects_operation,
@@ -471,35 +470,6 @@ def execute_code_async(ctx: Context, code: str) -> list[TextContent]:
 
 
 @tool
-def execute_code_headless(ctx: Context, code: str, timeout: float = 600) -> list[TextContent]:
-    """Run a FreeCAD Python script in a separate headless `freecadcmd` process.
-
-    Use this for OCCT work that can crash or block FreeCAD: helical threads
-    (makeHelix + makePipeShell), lofts and sweeps, booleans with many or
-    B-spline tools, long parametric rebuilds. A native OpenCascade crash
-    here only kills the helper process; the GUI and its open documents
-    survive, and the tool reports the crash signal and the script's output.
-
-    The script runs on the MCP server machine, independently of --host, in a
-    fresh process without GUI: import FreeCAD/Part
-    yourself, open documents from disk (FreeCAD.openDocument(path)), save
-    results with doc.save()/saveAs() or Shape.exportBrep(). Nothing from the
-    execute_code namespace is available. Print progress to stdout; it is
-    returned when the process ends. After the script saved a .FCStd that is
-    open in the GUI, call reload_document(doc_name) to show the result.
-
-    Args:
-        code: Complete Python script for freecadcmd.
-        timeout: Positive finite seconds to wait before killing the process
-            (default 600). Partial output is preserved on timeout.
-
-    Returns:
-        Exit status, crash/timeout diagnosis and the script's printed output.
-    """
-    return execute_code_headless_operation(state.freecadcmd, code, timeout)
-
-
-@tool
 def get_async_status(ctx: Context, job_id: str = "") -> list[TextContent]:
     """Report the state of background jobs started by execute_code_async.
 
@@ -688,8 +658,8 @@ def reload_document(ctx: Context, doc_name: str) -> list[TextContent]:
     """Close and re-open a document to pick up external file changes.
 
     Use this AFTER the document's .FCStd file has been modified by
-    something outside of FreeCAD's GUI process — for example, a
-    headless `freecadcmd` script that edited and saved the file. The
+    something outside of FreeCAD's GUI process — for example, another
+    program that edited and saved the file. The
     open GUI document is otherwise unaware of on-disk changes; this
     tool closes the stale in-memory copy and reopens the file from
     disk so the GUI shows current geometry.
@@ -822,13 +792,10 @@ def main():
         "other users can read command-line arguments; omit if the addon has "
         "no token set)",
     )
-    parser.add_argument("--freecadcmd", default=None, help="Command that starts headless FreeCAD for execute_code_headless, e.g. 'flatpak run --command=freecadcmd org.freecad.FreeCAD' (default: auto-detect PATH, then Flatpak)")
     args = parser.parse_args()
     state.only_text_feedback = args.only_text_feedback
     state.rpc_host = args.host
     state.auth_token = args.auth_token or os.environ.get("FREECAD_MCP_TOKEN") or None
-    from .headless import parse_command
-    state.freecadcmd = parse_command(args.freecadcmd)
     logger.info(f"Only text feedback: {state.only_text_feedback}")
     logger.info(f"Connecting to FreeCAD RPC server at: {state.rpc_host}")
     if state.auth_token:

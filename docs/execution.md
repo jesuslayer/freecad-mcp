@@ -8,7 +8,6 @@
 | --- | --- |
 | `execute_code` | Normal FreeCAD automation; the script runs on the GUI thread. |
 | `execute_code_async` | Long background computations on independent geometry; hand document and view access to the GUI thread with `commit()`. |
-| `execute_code_headless` | Heavy OCCT operations in a separate process, isolating native crashes from the GUI. |
 
 ## Shared script state
 
@@ -18,8 +17,7 @@ calls without overwriting the RPC server's own functions. This prevents accident
 name collisions; code execution still has FreeCAD's full privileges.
 
 Concurrent scripts share live variables and must coordinate intentional writes
-to the same data. Headless scripts run in a fresh process and do not share this
-namespace.
+to the same data.
 
 ## Background jobs
 
@@ -46,33 +44,12 @@ the result and recompute the document on the GUI thread. The helper returns
 later async calls. Calling it from `execute_code` or inside a GUI callback raises
 immediately.
 
-## Headless execution
+## Headless execution (removed in this fork)
 
-`execute_code_headless` writes the script to a file and runs it with
-`freecadcmd -c` in a separate process. Use it for OpenCascade work that may
-segfault or block the GUI for minutes: `makeHelix` + `makePipeShell` threads,
-lofts and sweeps, or booleans with many B-spline tools. A native crash only ends
-the helper process; the tool reports the signal (e.g. `SIGSEGV`) together with
-everything the script printed, and the GUI keeps its documents.
-
-The script must import the modules it needs and open and save documents itself
-(`FreeCAD.openDocument`, `doc.save()`, `doc.saveAs()`, or `Shape.exportBrep` for
-shape export). After saving an `.FCStd` file that is open in the GUI, use
-`reload_document(doc_name)` to refresh the GUI copy. Get the document name with
-`list_documents`.
-
-The executable runs on the machine hosting the MCP server; `--host` only selects
-the GUI RPC host. Use file paths accessible on the MCP server machine. The
-timeout must be positive and finite (default: 600 seconds). A timeout returns
-partial stdout/stderr, and temporary scripts are removed on success, failure,
-and timeout.
-
-The executable is auto-detected (`freecadcmd` or Snap's `freecad.cmd` on PATH,
-then the `org.freecad.FreeCAD` Flatpak). Override it with:
-
-```bash
-freecad-mcp --freecadcmd "flatpak run --command=freecadcmd org.freecad.FreeCAD"
-```
+Upstream's `execute_code_headless` ran AI-written scripts in a separate
+`freecadcmd` process on the MCP server host. That process did not go through the
+RPC server, so the auth token did not apply, and the executable was resolved
+through `PATH`. This hardened fork removes the tool; see [SECURITY.md](../SECURITY.md).
 
 ## GUI dispatch timeouts
 

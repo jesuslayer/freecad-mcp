@@ -86,10 +86,6 @@ Pass `--host` with the IP address or hostname of the machine running FreeCAD:
 The `--host` value is validated on startup and must be a valid IPv4/IPv6 address
 or hostname. Restart your MCP client after updating its configuration.
 
-`--host` selects the GUI RPC host. [Headless execution](execution.md#headless-execution)
-runs on the machine hosting the MCP server, so its file paths must be accessible
-there.
-
 ### 3. Require an auth token
 
 In the **FreeCAD MCP** toolbar, click **Set Auth Token** and enter a long random

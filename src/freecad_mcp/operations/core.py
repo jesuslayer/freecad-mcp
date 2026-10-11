@@ -148,30 +148,6 @@ def execute_code_async_operation(
         return text_response(f"Failed to start async code execution: {str(e)}")
 
 
-def format_headless_result(res: dict) -> str:
-    if res.get("success"):
-        text = "Headless FreeCAD script finished (exit 0)."
-    else:
-        text = f"Headless FreeCAD script FAILED: {res.get('error', 'unknown error')}"
-    if res.get("output"):
-        text += "\nOutput:\n" + str(res["output"]).rstrip()
-    if res.get("success"):
-        text += "\nIf the script saved a document that is open in the GUI, call reload_document to see the result."
-    return text
-
-
-def execute_code_headless_operation(
-    command: list[str] | None, code: str, timeout: float
-) -> ToolResponse:
-    from ..headless import run_headless
-
-    try:
-        return text_response(format_headless_result(run_headless(code, timeout, command)))
-    except Exception as e:
-        logger.error(f"Failed to run headless code: {str(e)}")
-        return text_response(f"Failed to run headless code: {str(e)}")
-
-
 def get_async_status_operation(
     freecad: FreeCADConnection, job_id: str = ""
 ) -> ToolResponse:
@@ -335,7 +311,7 @@ def reload_document_operation(
     doc_name: str,
 ) -> ToolResponse:
     """Close and re-open a document so the GUI picks up external file
-    changes (e.g. headless edits via `freecadcmd`).
+    changes made by another program.
     """
     try:
         res = freecad.reload_document(doc_name)

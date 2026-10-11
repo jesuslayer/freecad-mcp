@@ -8,7 +8,7 @@
 | --- | --- |
 | `create_document` | Create a new FreeCAD document. |
 | `list_documents` | List open documents. |
-| `reload_document` | Close and reopen a saved document to pick up external file changes, such as results from a headless script. |
+| `reload_document` | Close and reopen a saved document to pick up external file changes. |
 | `create_object` | Create an object in a document. |
 | `edit_object` | Edit an object's properties. |
 | `delete_object` | Delete an object from a document. |
@@ -18,7 +18,6 @@
 | `execute_code` | Execute Python code on FreeCAD's GUI thread. |
 | `execute_code_async` | Start a background computation and return its job ID; use `commit()` for document and view access. |
 | `get_async_status` | Get background job state and failure tracebacks without using the GUI thread. |
-| `execute_code_headless` | Run a script in a separate `freecadcmd` process and return its exit status and output. |
 | `get_rpc_status` | Report RPC and GUI-dispatch health, addon version, and version check without using the GUI thread. |
 | `insert_part_from_library` | Insert a part from the [FreeCAD parts library](https://github.com/FreeCAD/FreeCAD-library). |
 | `get_parts_list` | List parts in the [FreeCAD parts library](https://github.com/FreeCAD/FreeCAD-library). |
