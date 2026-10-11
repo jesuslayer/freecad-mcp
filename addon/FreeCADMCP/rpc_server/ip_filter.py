@@ -82,6 +82,22 @@ def browser_request_rejection(
 class BrowserGuardRequestHandler(SimpleXMLRPCRequestHandler):
     """Refuse requests a web page could have sent before they are dispatched."""
 
+    def discard_body(self) -> None:
+        """Read and drop a small, declared body before refusing the request.
+
+        Closing a socket with unread data makes Windows reset the connection,
+        and the client then loses the error response before reading it.
+        """
+        try:
+            size = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            return
+        if 0 < size <= MAX_REQUEST_BYTES:
+            try:
+                self.rfile.read(size)
+            except OSError:
+                pass
+
     def do_POST(self) -> None:
         rejection = browser_request_rejection(
             self.headers, self.server.loopback_only
@@ -93,6 +109,7 @@ class BrowserGuardRequestHandler(SimpleXMLRPCRequestHandler):
         FreeCAD.Console.PrintWarning(
             f"MCP RPC: Rejected request from {self.client_address[0]}: {reason}\n"
         )
+        self.discard_body()
         body = reason.encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
@@ -136,6 +153,7 @@ class TokenAuthRequestHandler(BrowserGuardRequestHandler):
         FreeCAD.Console.PrintWarning(
             f"MCP RPC: Rejected unauthenticated request from {self.client_address[0]}\n"
         )
+        self.discard_body()
         self.send_error(401, "Unauthorized: valid auth token required")
         return False
 
