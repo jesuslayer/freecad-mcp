@@ -71,7 +71,10 @@ scripts sent to `execute_code` and `execute_code_async` pass two layers
    no attributes named after system modules (e.g. `Draft.os`); `getattr`-style
    calls need a literal, non-private name; no string literals containing `__`.
 2. **Runtime**: scripts run with restricted builtins whose `__import__`
-   re-checks every import.
+   refuses system modules (`os`, `subprocess`, `socket`, ...). This layer is a
+   denylist because FreeCAD's C++ core imports its own modules (for example
+   `PartGui` when `doc.addObject("Part::Box")` runs) through the script's
+   builtins.
 
 Refused scripts return the rule and line number without running.
 

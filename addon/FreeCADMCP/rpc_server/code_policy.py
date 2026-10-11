@@ -6,8 +6,11 @@ Two layers, both active while the ``code_filter`` setting is true (default):
    ``ALLOWED_MODULES``, dangerous builtins, dunder attribute access and
    attributes named after system modules (e.g. ``Draft.os``).
 2. ``restricted_builtins`` is the ``__builtins__`` the script runs with: the
-   dangerous builtins are removed and ``__import__`` re-checks every import at
-   run time.
+   dangerous builtins are removed and ``__import__`` refuses system modules
+   (``RUNTIME_BLOCKED_MODULES``) at run time. It is a denylist, not the
+   allowlist above, because FreeCAD's C++ core imports its own modules (e.g.
+   ``PartGui`` from ``doc.addObject("Part::Box")``) through the builtins of
+   the running script.
 
 This is defense in depth, not a sandbox. Python offers many introspection
 paths and FreeCAD's own APIs can read and write files (``Part.read``,
@@ -45,6 +48,16 @@ BLOCKED_ATTRIBUTES = frozenset({
 })
 
 _ATTR_FUNCTIONS = frozenset({"getattr", "setattr", "delattr", "hasattr"})
+
+# Modules the runtime __import__ guard refuses, whoever asks for them.
+RUNTIME_BLOCKED_MODULES = frozenset({
+    "os", "nt", "posix", "sys", "subprocess", "shutil", "socket", "ssl",
+    "ctypes", "importlib", "pickle", "marshal", "builtins", "pathlib", "io",
+    "shlex", "runpy", "multiprocessing", "threading", "_thread", "signal",
+    "tempfile", "glob", "urllib", "http", "ftplib", "smtplib", "webbrowser",
+    "code", "codeop", "inspect", "winreg", "_winapi", "msvcrt", "asyncio",
+    "zipimport", "pty",
+})
 
 
 def _top_level(name: str) -> str:
@@ -118,7 +131,7 @@ def check_code(code: str) -> str | None:
 
 
 def _guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
-    if level or _top_level(name) not in ALLOWED_MODULES:
+    if level or _top_level(name) in RUNTIME_BLOCKED_MODULES:
         raise ImportError(f"import of '{name}' is not allowed by the code filter")
     return builtins.__import__(name, globals, locals, fromlist, level)
 

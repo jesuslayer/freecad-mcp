@@ -9,7 +9,7 @@ ADDON_DIR = Path(__file__).resolve().parents[1] / "addon" / "FreeCADMCP"
 if str(ADDON_DIR) not in sys.path:
     sys.path.insert(0, str(ADDON_DIR))
 
-from rpc_server.code_policy import check_code, restricted_builtins  # noqa: E402
+from rpc_server.code_policy import ALLOWED_MODULES, check_code, restricted_builtins  # noqa: E402
 
 
 ALLOWED = [
@@ -81,3 +81,13 @@ def test_runtime_import_guard() -> None:
         exec("import os", {"__builtins__": restricted_builtins()})
     with pytest.raises(NameError):
         exec("open('x')", {"__builtins__": restricted_builtins()})
+    with pytest.raises(ImportError, match="not allowed"):
+        restricted_builtins()["__import__"]("subprocess")
+
+
+def test_runtime_guard_lets_freecad_import_its_own_modules() -> None:
+    # doc.addObject("Part::Box") makes FreeCAD's C++ core import PartGui through
+    # the running script's builtins; a module outside ALLOWED_MODULES must load.
+    guarded_import = restricted_builtins()["__import__"]
+    assert "json" not in ALLOWED_MODULES
+    assert guarded_import("json").__name__ == "json"
