@@ -1,6 +1,7 @@
 import FreeCAD
 import FreeCADGui
 
+import builtins
 import contextlib
 import base64
 import io
@@ -16,6 +17,7 @@ from xmlrpc.client import Fault
 
 from PySide import QtCore
 
+from rpc_server.code_policy import check_code, restricted_builtins
 from rpc_server.commands import register_commands, schedule_toggle_sync
 from rpc_server.fem_executor import run_fem_analysis as _run_fem_analysis
 from rpc_server.gui_dispatch import (
@@ -71,6 +73,22 @@ def _record_job(job_id: str, **fields: Any) -> None:
         ]
         for key in finished[:max(0, len(finished) - _ASYNC_JOBS_KEEP)]:
             del _ASYNC_JOBS[key]
+
+
+def _code_rejection(code: str) -> str | None:
+    """Apply the code filter (hardened fork) and pick the script's builtins.
+
+    Returns the reason ``code`` is refused, or None when it may run.
+    """
+    if not load_settings().get("code_filter", True):
+        _EXEC_NAMESPACE["__builtins__"] = builtins
+        return None
+    _EXEC_NAMESPACE["__builtins__"] = restricted_builtins()
+    problem = check_code(code)
+    if problem:
+        FreeCAD.Console.PrintWarning(f"MCP RPC: code filter refused a script ({problem})\n")
+        return f"Refused by the code filter: {problem}"
+    return None
 
 
 def _ok(res) -> bool:
@@ -273,6 +291,10 @@ class FreeCADRPC:
         functions can reuse it in later async calls. It may only be called from
         an async worker, not from a synchronous script or GUI callback.
         """
+        rejection = _code_rejection(code)
+        if rejection:
+            return {"success": False, "error": rejection}
+
         def _set_status(msg):
             dispatch_to_gui(
                 lambda: FreeCADGui.getMainWindow().statusBar().showMessage(msg),
@@ -378,6 +400,10 @@ class FreeCADRPC:
             if isinstance(timeout, bool) or not math.isfinite(timeout_s) or timeout_s <= 0:
                 return {"success": False, "error": f"invalid timeout: {timeout!r}"}
             timeout_s = min(timeout_s, self.MAX_EXECUTE_CODE_TIMEOUT)
+
+        rejection = _code_rejection(code)
+        if rejection:
+            return {"success": False, "error": rejection}
 
         output_buffer = io.StringIO()
 

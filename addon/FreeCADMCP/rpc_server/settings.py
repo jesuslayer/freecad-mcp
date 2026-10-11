@@ -13,6 +13,7 @@ _DEFAULT_SETTINGS = {
     "allowed_ips": "127.0.0.1",
     "auto_start_rpc": False,
     "auth_token": "",  # empty = the RPC server refuses to start
+    "code_filter": True,  # see rpc_server/code_policy.py
 }
 
 

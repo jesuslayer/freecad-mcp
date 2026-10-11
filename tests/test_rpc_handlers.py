@@ -125,10 +125,29 @@ def test_async_scripts_share_variables_without_replacing_dispatch(
     assert result["message"].endswith("42\n")
 
 
+def test_code_filter_refuses_before_running(rpc_module: types.ModuleType) -> None:
+    rpc = rpc_module.FreeCADRPC()
+    rpc_module.FreeCAD.ran = []
+    refused = rpc.execute_code("FreeCAD.ran.append(1)\nimport os")
+    assert refused["success"] is False
+    assert "code filter" in refused["error"] and "'os'" in refused["error"]
+    refused_async = rpc.execute_code_async("open('x')")
+    assert refused_async["success"] is False and "'open'" in refused_async["error"]
+    assert rpc_module.FreeCAD.ran == []
+    assert rpc.execute_code("FreeCAD.ran.append(2)")["success"] is True
+    assert rpc_module.FreeCAD.ran == [2]
+
+
+def unfiltered(module: types.ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Turn the code filter off for tests that inspect threads or globals()."""
+    monkeypatch.setattr(module, "load_settings", lambda: {"code_filter": False})
+
+
 def test_async_commit_runs_document_writes_on_the_gui_thread(
-    rpc_module: types.ModuleType,
+    rpc_module: types.ModuleType, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Document writes must land on the GUI thread, not the worker thread."""
+    unfiltered(rpc_module, monkeypatch)
     rpc = rpc_module.FreeCADRPC()
     done = threading.Event()
     rpc_module.FreeCAD.async_done = done
@@ -196,8 +215,9 @@ def test_saved_functions_can_commit_in_later_async_scripts(
 
 
 def test_async_completion_preserves_concurrent_writes_and_deletions(
-    rpc_module: types.ModuleType,
+    rpc_module: types.ModuleType, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    unfiltered(rpc_module, monkeypatch)
     rpc = rpc_module.FreeCADRPC()
     entered, release, done = threading.Event(), threading.Event(), threading.Event()
     rpc_module.FreeCAD.test_entered = entered
