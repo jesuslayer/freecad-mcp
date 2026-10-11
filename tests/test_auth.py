@@ -143,6 +143,17 @@ def test_client_sends_the_token_without_exposing_it() -> None:
         assert "wrong-token" not in repr(proxy)
 
 
+def test_mcp_server_requires_a_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    from freecad_mcp import server
+
+    monkeypatch.delenv("FREECAD_MCP_TOKEN", raising=False)
+    monkeypatch.setattr(sys, "argv", ["freecad-mcp"])
+    monkeypatch.setattr(server.mcp, "run", lambda: pytest.fail("must not start"))
+    with pytest.raises(SystemExit) as exited:
+        server.main()
+    assert exited.value.code == 2
+
+
 @pytest.mark.parametrize("client_token", [None, "wrong-token"])
 def test_rejected_token_is_explained(
     client_token: str | None, monkeypatch: pytest.MonkeyPatch

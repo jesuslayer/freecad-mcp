@@ -12,7 +12,7 @@ _DEFAULT_SETTINGS = {
     "remote_enabled": False,
     "allowed_ips": "127.0.0.1",
     "auto_start_rpc": False,
-    "auth_token": "",  # empty = authentication disabled
+    "auth_token": "",  # empty = the RPC server refuses to start
 }
 
 

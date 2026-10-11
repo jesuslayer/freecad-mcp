@@ -64,6 +64,20 @@ def test_busy_port_does_not_publish_running_state(rpc_module: types.ModuleType) 
     assert rpc_module.rpc_server_thread is None
 
 
+def test_missing_token_refuses_to_start(
+    rpc_module: types.ModuleType, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created = []
+    monkeypatch.setattr(rpc_module, "load_settings", lambda: {"auth_token": ""})
+    monkeypatch.setattr(
+        rpc_module, "FilteredXMLRPCServer", lambda *args, **kwargs: created.append(args)
+    )
+    with pytest.raises(RuntimeError, match="no auth token is set"):
+        rpc_module.start_rpc_server(port=0)
+    assert created == []
+    assert rpc_module.rpc_server_instance is None
+
+
 def test_gui_setup_failure_releases_listener(
     rpc_module: types.ModuleType, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

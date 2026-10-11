@@ -789,15 +789,18 @@ def main():
         default=None,
         help="Auth token the FreeCAD RPC server requires (falls back to the "
         "FREECAD_MCP_TOKEN environment variable, which is preferable because "
-        "other users can read command-line arguments; omit if the addon has "
-        "no token set)",
+        "other users can read command-line arguments)",
     )
     args = parser.parse_args()
     state.only_text_feedback = args.only_text_feedback
     state.rpc_host = args.host
     state.auth_token = args.auth_token or os.environ.get("FREECAD_MCP_TOKEN") or None
+    if not state.auth_token:
+        parser.error(
+            "an auth token is required: set FREECAD_MCP_TOKEN to the token "
+            "configured with 'Set Auth Token' in FreeCAD"
+        )
     logger.info(f"Only text feedback: {state.only_text_feedback}")
     logger.info(f"Connecting to FreeCAD RPC server at: {state.rpc_host}")
-    if state.auth_token:
-        logger.info("Auth token configured for RPC connection")
+    logger.info("Auth token configured for RPC connection")
     mcp.run()

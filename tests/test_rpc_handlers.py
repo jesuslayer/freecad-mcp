@@ -53,7 +53,9 @@ def rpc_module(monkeypatch: pytest.MonkeyPatch) -> Iterator[types.ModuleType]:
                 get_parts_list=lambda: [], insert_part_from_library=lambda _path: None
             ),
             "serialize": types.SimpleNamespace(serialize_object=lambda obj: {"Name": obj.Name}),
-            "settings": types.SimpleNamespace(load_settings=lambda: {}, save_settings=lambda _: None),
+            "settings": types.SimpleNamespace(
+                load_settings=lambda: {"auth_token": "test-token"}, save_settings=lambda _: None
+            ),
             "view_manager": types.SimpleNamespace(
                 get_displayed_3d_view=lambda: None,
                 save_active_screenshot=lambda *_args: True,

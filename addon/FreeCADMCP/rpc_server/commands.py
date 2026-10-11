@@ -82,9 +82,8 @@ class ToggleRemoteConnectionsCommand:
             )
             if not settings.get("auth_token", ""):
                 FreeCAD.Console.PrintWarning(
-                    "Remote connections have no auth token configured — anyone on "
-                    "an allowed IP can execute code in FreeCAD. Set one via "
-                    "'Set Auth Token' in the FreeCAD MCP menu.\n"
+                    "No auth token is configured; the RPC server will not start "
+                    "until one is set via 'Set Auth Token' in the FreeCAD MCP menu.\n"
                 )
         else:
             FreeCAD.Console.PrintMessage("Remote connections disabled.\n")
@@ -152,31 +151,40 @@ class SetAuthTokenCommand:
     def GetResources(self):
         return {
             "MenuText": "Set Auth Token",
-            "ToolTip": "Set the shared-secret token clients must present to connect. Blank disables authentication.",
+            "ToolTip": "Set the shared-secret token clients must present to connect. Blank generates a random one.",
         }
 
     def Activated(self):
+        import secrets
+
         from . import rpc_server
         settings = load_settings()
-        current = settings.get("auth_token", "")
         text, ok = QtWidgets.QInputDialog.getText(
             None,
             "Auth Token",
-            "Enter the auth token clients must present (leave blank to disable\n"
-            "authentication). The MCP server passes it via --auth-token or the\n"
-            "FREECAD_MCP_TOKEN environment variable.",
-            QtWidgets.QLineEdit.Normal,
-            current,
+            "Enter the auth token clients must present, or leave blank to\n"
+            "generate a random one (copied to the clipboard). The MCP server\n"
+            "reads it from the FREECAD_MCP_TOKEN environment variable.",
+            QtWidgets.QLineEdit.Password,
+            "",
         )
         if not ok:
             FreeCAD.Console.PrintMessage("Auth token not changed.\n")
             return
-        settings["auth_token"] = text.strip()
+        token = text.strip()
+        generated = not token
+        if generated:
+            token = secrets.token_urlsafe(32)
+        settings["auth_token"] = token
         save_settings(settings)
-        if settings["auth_token"]:
-            FreeCAD.Console.PrintMessage("Auth token set — clients must authenticate.\n")
+        if generated:
+            QtWidgets.QApplication.clipboard().setText(token)
+            FreeCAD.Console.PrintMessage(
+                "Random auth token generated and copied to the clipboard. "
+                "Set it as FREECAD_MCP_TOKEN in your MCP client.\n"
+            )
         else:
-            FreeCAD.Console.PrintMessage("Auth token cleared — authentication disabled.\n")
+            FreeCAD.Console.PrintMessage("Auth token set — clients must authenticate.\n")
         if rpc_server.rpc_server_instance:
             FreeCAD.Console.PrintMessage(
                 "Restart the RPC server for changes to take effect.\n"
