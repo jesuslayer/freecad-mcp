@@ -9,6 +9,7 @@ import base64
 import hmac
 import ipaddress
 import re
+import threading
 from email.message import Message
 from socketserver import ThreadingMixIn
 from xmlrpc.server import SimpleXMLRPCRequestHandler, SimpleXMLRPCServer
@@ -17,6 +18,26 @@ import FreeCAD
 
 
 _XML_MEDIA_TYPES = frozenset({"text/xml", "application/xml"})
+
+# Hardened fork: bound memory and threads a local process can make FreeCAD use.
+MAX_REQUEST_BYTES = 2 * 1024 * 1024
+MAX_CONCURRENT_REQUESTS = 8
+
+
+def request_size_rejection(headers: Message) -> tuple[int, str] | None:
+    """Return ``(status, reason)`` for a body that is undeclared or too large."""
+    length = headers.get("Content-Length")
+    if length is None:
+        return 411, "Content-Length is required"
+    try:
+        size = int(length)
+    except ValueError:
+        return 400, "invalid Content-Length"
+    if size < 0:
+        return 400, "invalid Content-Length"
+    if size > MAX_REQUEST_BYTES:
+        return 413, f"request body exceeds {MAX_REQUEST_BYTES} bytes"
+    return None
 
 
 def _host_name(host_header: str) -> str:
@@ -62,7 +83,9 @@ class BrowserGuardRequestHandler(SimpleXMLRPCRequestHandler):
     """Refuse requests a web page could have sent before they are dispatched."""
 
     def do_POST(self) -> None:
-        rejection = browser_request_rejection(self.headers, self.server.loopback_only)
+        rejection = browser_request_rejection(
+            self.headers, self.server.loopback_only
+        ) or request_size_rejection(self.headers)
         if rejection is None:
             super().do_POST()
             return
@@ -133,9 +156,17 @@ class FilteredXMLRPCServer(ThreadingMixIn, SimpleXMLRPCServer):
 
     daemon_threads = True
 
-    def __init__(self, addr, allowed_ips_str="127.0.0.1", auth_token="", **kwargs):
+    def __init__(
+        self,
+        addr,
+        allowed_ips_str="127.0.0.1",
+        auth_token="",
+        max_concurrent_requests=MAX_CONCURRENT_REQUESTS,
+        **kwargs,
+    ):
         self._allowed_networks = _parse_allowed_ips(allowed_ips_str)
         self.auth_token = auth_token or ""
+        self._request_slots = threading.BoundedSemaphore(max_concurrent_requests)
         # Remote clients address the server by its LAN name or IP, so only a
         # loopback-bound server can require a localhost Host header.
         self.loopback_only = _is_loopback_name(str(addr[0]).lower())
@@ -155,6 +186,33 @@ class FilteredXMLRPCServer(ThreadingMixIn, SimpleXMLRPCServer):
             f"MCP RPC: Rejected connection from {client_ip}\n"
         )
         return False
+
+    def process_request(self, request, client_address):
+        # Refuse instead of spawning an unbounded number of handler threads.
+        if not self._request_slots.acquire(blocking=False):
+            FreeCAD.Console.PrintWarning(
+                f"MCP RPC: Too many concurrent requests; rejected {client_address[0]}\n"
+            )
+            try:
+                request.sendall(
+                    b"HTTP/1.0 503 Service Unavailable\r\n"
+                    b"Content-Length: 0\r\nConnection: close\r\n\r\n"
+                )
+            except OSError:
+                pass
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._request_slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._request_slots.release()
 
 
 _COMMA_SEP_RE = re.compile(r"^\s*[^,\s]+(\s*,\s*[^,\s]+)*\s*$")
