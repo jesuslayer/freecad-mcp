@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
-  <name>FreeCAD MCP</name>
-  <description>Control FreeCAD from AI assistants via the Model Context Protocol — XML-RPC server addon with GUI-thread dispatch, screenshots, parts library and FEM helpers.</description>
-  <version>0.1.26</version>
+  <name>FreeCAD MCP (hardened)</name>
+  <description>Security-hardened fork of FreeCAD MCP: mandatory auth token, no headless execution, RPC limits and a code filter for execute_code.</description>
+  <version>0.1.26+hardened.1</version>
   <date>2026-09-18</date>
   <maintainer email="nekanat.stock@gmail.com">neka-nat</maintainer>
   <license>MIT</license>

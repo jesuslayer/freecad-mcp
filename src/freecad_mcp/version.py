@@ -13,7 +13,7 @@ from typing import Any
 PROTOCOL_VERSION = 1
 
 try:
-    __version__ = version("freecad-mcp")
+    __version__ = version("freecad-mcp-hardened")
 except PackageNotFoundError:
     __version__ = "unknown"
 

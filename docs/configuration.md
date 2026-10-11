@@ -42,11 +42,12 @@ By default, the RPC server listens on `localhost` and does not accept remote
 connections. To control FreeCAD from another machine on your network, configure
 both the addon and the MCP client.
 
-Unless you [set an auth token](#3-require-an-auth-token), the RPC server has no
-authentication, and it never encrypts traffic. Any program that can reach the
-port from an allowed address can call every tool, including `execute_code`,
-which runs arbitrary Python inside FreeCAD with your user's permissions. Set a
-token whenever remote connections are on, allow only machines you trust, keep
+In this hardened fork the RPC server always requires an
+[auth token](#3-require-an-auth-token), but it never encrypts traffic. Any
+program that can reach the port from an allowed address and knows the token can
+call every tool, including `execute_code`, which runs Python inside FreeCAD with
+your user's permissions (narrowed, not sandboxed, by the
+[code filter](../SECURITY.md#code-filter)). Allow only machines you trust, keep
 the list as narrow as possible, and prefer an [SSH tunnel](#alternative-ssh-tunnel)
 on networks you do not control. Whatever the settings, the server refuses
 requests sent by web browsers, so a web page cannot call it.
@@ -88,11 +89,11 @@ or hostname. Restart your MCP client after updating its configuration.
 
 ### 3. Require an auth token
 
-In the **FreeCAD MCP** toolbar, click **Set Auth Token** and enter a long random
-value, such as the output of
-`python -c "import secrets; print(secrets.token_urlsafe(32))"`. Restart the RPC
-server. From then on, it answers only requests that carry the token. Clear the
-field to turn authentication off again.
+The token is mandatory in this fork: without one the RPC server refuses to start
+and the MCP server exits. In the **FreeCAD MCP** toolbar, click **Set Auth Token**
+and leave the field blank to generate a random token (copied to the clipboard),
+or enter your own long random value. Restart the RPC server. It answers only
+requests that carry the token.
 
 Give the MCP server the same token in the `FREECAD_MCP_TOKEN` environment
 variable:

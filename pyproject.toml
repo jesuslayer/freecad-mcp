@@ -1,7 +1,7 @@
 [project]
-name = "freecad-mcp"
-version = "0.1.26"
-description = "Add your description here"
+name = "freecad-mcp-hardened"
+version = "0.1.26+hardened.1"
+description = "Security-hardened fork of freecad-mcp: mandatory auth token, no headless execution, RPC limits and a code filter"
 readme = "README.md"
 authors = [
     { name = "neka-nat", email = "nekanat.stock@gmail.com" }
@@ -23,6 +23,9 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/freecad_mcp"]
 
 [tool.hatch.build.targets.sdist]
 exclude = ["assets", "results"]
