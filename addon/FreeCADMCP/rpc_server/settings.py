@@ -38,8 +38,14 @@ def load_settings():
 
 def save_settings(settings):
     path = _get_settings_path()
+    tmp_path = path + ".tmp"
     try:
-        with open(path, "w") as f:
+        # The file holds the auth token: create it owner-only (no effect on
+        # Windows) and replace atomically so a crash cannot leave it half
+        # written.
+        fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
             json.dump(settings, f, indent=2)
+        os.replace(tmp_path, path)
     except Exception as e:
         FreeCAD.Console.PrintError(f"Failed to save MCP settings: {e}\n")

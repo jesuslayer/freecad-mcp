@@ -46,6 +46,23 @@ BLOCKED = [
     ("import FreeCAD\nFreeCAD.sys", "'sys'"),
     ("'{0.__class__}'.format(1)", "'__'"),
     ("from FreeCAD import os", "'os'"),
+    # Private aliases of system modules inside allowed stdlib modules.
+    ("import random\nrandom._os.getpid()", "private attribute '_os'"),
+    ("import collections\ncollections._sys.modules['os']", "private attribute '_sys'"),
+    ("from random import _os", "importing '_os'"),
+    # Other process API of os, should an alias be exposed.
+    ("import FreeCAD\nFreeCAD.proc.spawnl(0, 'x')", "attribute 'spawnl'"),
+    ("import FreeCAD\nFreeCAD.proc.posix_spawn('x', [], {})", "attribute 'posix_spawn'"),
+    # Runs a string of Python outside the script's restricted builtins.
+    ("FreeCADGui.doCommand('import os')", "attribute 'doCommand'"),
+    ("Gui.doCommandGui('import os')", "attribute 'doCommandGui'"),
+    ("Gui.doCommandSkip('import os')", "attribute 'doCommandSkip'"),
+    ("import FreeCAD\nFreeCAD.loadFile('C:/m.FCMacro')", "attribute 'loadFile'"),
+    ("import FreeCADGui\nFreeCADGui.runCommand('Std_Macro')", "attribute 'runCommand'"),
+    ("import FreeCADGui\nFreeCADGui.addModule('os')", "attribute 'addModule'"),
+    ("import numpy\nnumpy.ctypeslib.load_library('x', '.')", "attribute 'ctypeslib'"),
+    ("import numpy\nnumpy.load('x.npy', allow_pickle=True)", "attribute 'load'"),
+    ("import numpy\nnumpy.testing.extbuild", "attribute 'extbuild'"),
 ]
 
 
@@ -91,3 +108,9 @@ def test_runtime_guard_lets_freecad_import_its_own_modules() -> None:
     guarded_import = restricted_builtins()["__import__"]
     assert "json" not in ALLOWED_MODULES
     assert guarded_import("json").__name__ == "json"
+
+
+def test_private_alias_bypass_does_not_run() -> None:
+    """The refusal comes from the static check, so nothing executes."""
+    code = "import random\nmarker = random._os.getpid()"
+    assert check_code(code) is not None

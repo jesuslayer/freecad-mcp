@@ -6,6 +6,7 @@ import http.client
 import socket
 import sys
 import threading
+import time
 import xmlrpc.client
 
 from test_rpc_concurrency import filtered_server_class
@@ -101,3 +102,36 @@ def test_requests_over_the_concurrency_limit_get_503() -> None:
         interface.release.set()
         busy.join(timeout=5)
         assert xmlrpc.client.ServerProxy(f"http://:t@127.0.0.1:{port}").ping() is True
+
+
+def test_idle_connections_do_not_hold_slots_forever() -> None:
+    """Silent sockets must time out so they cannot lock out the real client."""
+    server_class = filtered_server_class()
+    handler = sys.modules[server_class.__module__].TokenAuthRequestHandler
+
+    class QuickTimeout(handler):
+        timeout = 0.5
+
+    with limited_server(max_concurrent_requests=2, requestHandler=QuickTimeout) as (_, port):
+        idle = [socket.create_connection(("127.0.0.1", port)) for _ in range(2)]
+        try:
+            # Both slots are taken, so a third connection is refused.
+            with socket.create_connection(("127.0.0.1", port), timeout=5) as conn:
+                assert conn.makefile("rb").readline().split()[1] == b"503"
+            # Once the idle sockets time out the slots come back.
+            deadline = time.monotonic() + 5
+            while True:
+                try:
+                    assert xmlrpc.client.ServerProxy(f"http://:t@127.0.0.1:{port}").ping() is True
+                    break
+                except xmlrpc.client.ProtocolError:
+                    assert time.monotonic() < deadline, "slots were never released"
+                    time.sleep(0.2)
+        finally:
+            for conn in idle:
+                conn.close()
+
+
+def test_default_idle_timeout_is_set() -> None:
+    handler = sys.modules[filtered_server_class().__module__].TokenAuthRequestHandler
+    assert handler.timeout is not None and 0 < handler.timeout <= 30

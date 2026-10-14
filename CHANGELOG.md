@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Security
+- Code filter: refuse private attributes (`random._os`, `collections._sys`
+  were a bypass), `FreeCADGui.doCommand*`, `loadFile`, `runCommand`,
+  `addModule`, more of `os`'s process API and numpy's `ctypeslib` / `load` /
+  `extbuild` / `f2py`.
+- RPC: 10 s idle timeout per connection, so silent sockets cannot hold the
+  8 concurrency slots and lock out the MCP client.
+- Settings file (holds the token) is written atomically and owner-only.
+
 ## 0.1.26+hardened.1
 
 Security-hardened fork of upstream freecad-mcp v0.1.26 (`4751f95`).

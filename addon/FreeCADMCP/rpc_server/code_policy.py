@@ -45,6 +45,17 @@ BLOCKED_ATTRIBUTES = frozenset({
     "multiprocessing", "threading", "signal", "tempfile", "glob", "urllib",
     "http", "ftplib", "smtplib", "webbrowser", "code", "codeop", "inspect",
     "system", "popen", "spawnv", "execv", "startfile",
+    # More of os's process API, in case an alias of os is ever exposed.
+    "spawnl", "spawnle", "spawnlp", "spawnlpe", "spawnve", "spawnvp",
+    "spawnvpe", "execl", "execle", "execlp", "execlpe", "execve", "execvp",
+    "execvpe", "posix_spawn", "posix_spawnp", "fork", "forkpty",
+    # Runs a string of Python in FreeCAD's own interpreter, outside the
+    # script's restricted builtins.
+    "doCommand", "doCommandGui", "doCommandEval", "doCommandSkip",
+    # Run macros, commands or imports in FreeCAD's own interpreter.
+    "loadFile", "runCommand", "addModule",
+    # numpy paths to native code or pickle.
+    "ctypeslib", "load", "read_array", "extbuild", "f2py", "distutils",
 })
 
 _ATTR_FUNCTIONS = frozenset({"getattr", "setattr", "delattr", "hasattr"})
@@ -86,7 +97,7 @@ class _Checker(ast.NodeVisitor):
         if node.level or not node.module or _top_level(node.module) not in ALLOWED_MODULES:
             self._fail(node, f"import from '{node.module or '.'}' is not allowed")
         for alias in node.names:
-            if alias.name in BLOCKED_ATTRIBUTES or _is_dunder(alias.name):
+            if alias.name in BLOCKED_ATTRIBUTES or alias.name.startswith("_"):
                 self._fail(node, f"importing '{alias.name}' is not allowed")
         self.generic_visit(node)
 
@@ -98,6 +109,11 @@ class _Checker(ast.NodeVisitor):
     def visit_Attribute(self, node: ast.Attribute) -> None:
         if _is_dunder(node.attr):
             self._fail(node, f"access to '{node.attr}' is not allowed")
+        elif node.attr.startswith("_"):
+            # Stdlib modules keep private aliases of system modules
+            # (random._os, collections._sys); the name check below cannot
+            # see them, and no modelling code needs a private attribute.
+            self._fail(node, f"access to private attribute '{node.attr}' is not allowed")
         elif node.attr in BLOCKED_ATTRIBUTES:
             self._fail(node, f"access to attribute '{node.attr}' is not allowed")
         self.generic_visit(node)

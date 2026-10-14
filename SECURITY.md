@@ -31,8 +31,8 @@ FreeCAD with the user's permissions. Attackers considered:
 | Medium | `execute_code` / `execute_code_async` `exec()` arbitrary Python. | **Mitigated**: code filter (below) + manual approval in the client. |
 | Medium | Document contents (labels, properties, spreadsheet/text content) are returned to the model unescaped: a crafted `.FCStd` can carry prompt-injection text. | **Documented**: do not open untrusted documents while an agent is connected. |
 | Medium | `uvx freecad-mcp` resolves the latest PyPI release; the addon is copied by hand and can drift from the package. | **Mitigated**: install both from the same tag of this fork. |
-| Low | No request size limit and one thread per connection (local memory/thread exhaustion). | **Fixed**: 2 MiB body limit, `Content-Length` required, max 8 concurrent requests. |
-| Low | Token stored in plaintext in `freecad_mcp_settings.json` and typed into an unmasked dialog. | **Partly fixed**: dialog masks input and can generate a token. The file stays in FreeCAD's per-user data directory. |
+| Low | No request size limit and one thread per connection (local memory/thread exhaustion). | **Fixed**: 2 MiB body limit, `Content-Length` required, max 8 concurrent requests, 10 s idle timeout per connection. |
+| Low | Token stored in plaintext in `freecad_mcp_settings.json` and typed into an unmasked dialog. | **Partly fixed**: dialog masks input and can generate a token. The file stays in FreeCAD's per-user data directory, written atomically and owner-only (`0600`, POSIX). |
 | Low | `edit_object` / `create_object` can set any property; opening `.FCStd` files restores FeaturePython proxies. | **Documented**: keep these tools on manual approval. |
 | Info | Browser guard (Origin / Content-Type / Host checks) blocks CSRF and DNS rebinding; token compared in constant time; parts library blocks path traversal; no telemetry or outbound network calls. | Kept as is. |
 
@@ -57,7 +57,9 @@ Heavy OCCT work can use `execute_code_async`.
 
 `Content-Length` is required (411) and bodies over 2 MiB are refused (413)
 before they are read. At most 8 requests run at once; further connections get
-503.
+503. A connection that stays silent for 10 s while its request is read is
+closed, so idle sockets cannot hold those slots; a slow `execute_code` is not
+affected (the timeout covers socket reads and writes only).
 
 ### Code filter
 
@@ -68,7 +70,11 @@ scripts sent to `execute_code` and `execute_code_async` pass two layers
 1. **Static check** before running: imports only from FreeCAD workbenches and
    pure-computation modules (`math`, `numpy`, ...); no `open`, `eval`, `exec`,
    `compile`, `__import__`, `globals`, `vars`...; no dunder names or attributes;
-   no attributes named after system modules (e.g. `Draft.os`); `getattr`-style
+   no private attributes (`_x`, which also covers stdlib aliases such as
+   `random._os` and `collections._sys`); no attributes named after system
+   modules (e.g. `Draft.os`) or that run code outside the filter
+   (`FreeCADGui.doCommand*`, `loadFile`, `runCommand`, `addModule`,
+   `numpy.ctypeslib`, `numpy.load`, ...); `getattr`-style
    calls need a literal, non-private name; no string literals containing `__`.
 2. **Runtime**: scripts run with restricted builtins whose `__import__`
    refuses system modules (`os`, `subprocess`, `socket`, ...). This layer is a
@@ -80,7 +86,9 @@ Refused scripts return the rule and line number without running.
 
 **Limitations.** This is defense in depth, not a sandbox. Python has many
 introspection paths, and FreeCAD's own APIs can read and write files
-(`Part.read`, `Shape.exportStep`, `doc.saveAs`, ...). The filter narrows what
+(`Part.read`, `Shape.exportStep`, `doc.saveAs`, ...), and objects such as
+`FreeCADGui.getMainWindow()` or `FreeCAD.ParamGet` reach Qt and FreeCAD
+preferences. The filter narrows what
 can slip through; **manual approval of `execute_code` in your MCP client remains
 the real control.** Setting `code_filter` to `false` restores upstream behavior.
 

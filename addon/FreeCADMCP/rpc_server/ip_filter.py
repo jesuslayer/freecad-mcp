@@ -22,6 +22,12 @@ _XML_MEDIA_TYPES = frozenset({"text/xml", "application/xml"})
 # Hardened fork: bound memory and threads a local process can make FreeCAD use.
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
 MAX_CONCURRENT_REQUESTS = 8
+# Seconds a connection may stay silent while its request is read. Without it
+# a client that never finishes (or never sends) a request holds one of the
+# concurrency slots forever, and 8 such sockets lock out the real MCP client.
+# It limits socket reads and writes only, not the time a handler spends
+# running, so slow execute_code calls are unaffected.
+REQUEST_IDLE_TIMEOUT = 10
 
 
 def request_size_rejection(headers: Message) -> tuple[int, str] | None:
@@ -81,6 +87,8 @@ def browser_request_rejection(
 
 class BrowserGuardRequestHandler(SimpleXMLRPCRequestHandler):
     """Refuse requests a web page could have sent before they are dispatched."""
+
+    timeout = REQUEST_IDLE_TIMEOUT
 
     def discard_body(self) -> None:
         """Read and drop a small, declared body before refusing the request.
